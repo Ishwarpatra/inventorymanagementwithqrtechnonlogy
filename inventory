@@ -1,0 +1,34 @@
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+import joblib
+
+# Load data
+def load_data(file_path):
+    df = pd.read_csv(file_path, parse_dates=['Expiry Date', 'Last Restocked Date'])
+    print("Data loaded successfully!")
+    return df
+
+# Feature Engineering
+def engineer_features(df):
+    df['Days Until Expiry'] = (df['Expiry Date'] - pd.to_datetime('today')).dt.days
+    df['Stock Ratio'] = df['Stock Quantity'] / df['Reorder Level']
+    df['Sales Velocity'] = df['Sales Per Month'] / (df['Days Until Expiry'] + 1)
+    df['Expired'] = df['Days Until Expiry'].apply(lambda x: 1 if x < 0 else 0)
+    
+    # Encode categorical variables
+    encoder = LabelEncoder()
+    df['Category'] = encoder.fit_transform(df['Category'])
+    df['Brand'] = encoder.fit_transform(df['Brand'])
+    
+    # Save encoder
+    joblib.dump(encoder, "moencoders.pkl")
+    
+    return df
+
+if __name__ == "__main__":
+    file_path = "updated_retail_inventory.csv"  # Your inventory data
+    df = load_data(file_path)
+    df = engineer_features(df)
+    df.to_csv("processed_inventory.csv", index=False)
+    print("Feature engineering completed & data saved!")
