@@ -28,8 +28,10 @@ from models import engine, SessionLocal, InventoryItem, User as DBUser
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+import os
+
 # Security configuration
-SECRET_KEY = "your-secret-key-change-this-in-production"  # Change this in production
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production")  # Change this in production
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -85,32 +87,6 @@ def get_db():
         db.close()
 
 
-# Initialize mock user database with hashed passwords
-def initialize_mock_users():
-    # Create users with properly truncated passwords
-    users = {}
-    users["admin"] = {
-        "username": "admin",
-        "email": "admin@example.com",
-        "role": "admin",
-        "hashed_password": pwd_context.hash("admin123"),  # Default admin password
-    }
-    users["manager"] = {
-        "username": "manager",
-        "email": "manager@example.com",
-        "role": "manager",
-        "hashed_password": pwd_context.hash("mgr123"),  # Default manager password
-    }
-    users["employee"] = {
-        "username": "employee",
-        "email": "employee@example.com",
-        "role": "employee",
-        "hashed_password": pwd_context.hash("emp123"),  # Default employee password
-    }
-    return users
-
-# Initialize the users database later to avoid bcrypt initialization issues
-fake_users_db = {}
 
 def verify_password(plain_password, hashed_password):
     """Verify a plain password against a hashed password."""
@@ -122,12 +98,12 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-def authenticate_user(username: str, password: str):
-    """Authenticate a user by username and password."""
-    user = fake_users_db.get(username)
+def authenticate_user(username: str, password: str, db: Session):
+    """Authenticate a user by username and password from the database."""
+    user = db.query(DBUser).filter(DBUser.username == username).first()
     if not user:
         return False
-    if not verify_password(password, user["hashed_password"]):
+    if not verify_password(password, user.hashed_password):
         return False
     return user
 
@@ -144,7 +120,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     """Get the current authenticated user from the token."""
     credentials_exception = HTTPException(
         status_code=401,
@@ -161,7 +137,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except JWTError:
         raise credentials_exception
     
-    user = fake_users_db.get(token_data.username)
+    user = db.query(DBUser).filter(DBUser.username == token_data.username).first()
     if user is None:
         raise credentials_exception
     return user
@@ -169,8 +145,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 def require_role(required_role: str):
     """Dependency to check if user has required role."""
-    async def role_checker(current_user: dict = Depends(get_current_user)):
-        user_role = current_user.get("role")
+    async def role_checker(current_user: DBUser = Depends(get_current_user)):
+        user_role = current_user.role
         if user_role not in USER_ROLES.get(required_role, []):
             raise HTTPException(
                 status_code=403,
@@ -206,10 +182,9 @@ async def lifespan(app: FastAPI):
     logger.info("Application shutdown completed.")
 
 
-# Define the lifespan function first
+# Define the startup event
 async def startup_event():
-    """Initialize models and users at startup."""
-    global fake_users_db  # Initialize the global variable here
+    """Initialize models and create default users at startup."""
     try:
         app.xgb_model = joblib.load(CONFIG["model_path"])
         app.kmeans_model = joblib.load(CONFIG["cluster_model_path"])
@@ -221,8 +196,47 @@ async def startup_event():
             app.scaler = None
             logger.warning("Scaler not found. Clustering may not work properly.")
         
-        # Initialize the fake users database here to avoid bcrypt initialization issues
-        fake_users_db.update(initialize_mock_users())
+        # Create default users in the database if they don't exist
+        db = SessionLocal()
+        try:
+            # Check if default users already exist
+            admin_user = db.query(DBUser).filter(DBUser.username == "admin").first()
+            if not admin_user:
+                db_admin = DBUser(
+                    username="admin",
+                    email="admin@example.com",
+                    role="admin",
+                    hashed_password=get_password_hash("admin123"),
+                    is_active=True
+                )
+                db.add(db_admin)
+            
+            manager_user = db.query(DBUser).filter(DBUser.username == "manager").first()
+            if not manager_user:
+                db_manager = DBUser(
+                    username="manager",
+                    email="manager@example.com",
+                    role="manager",
+                    hashed_password=get_password_hash("mgr123"),
+                    is_active=True
+                )
+                db.add(db_manager)
+            
+            employee_user = db.query(DBUser).filter(DBUser.username == "employee").first()
+            if not employee_user:
+                db_employee = DBUser(
+                    username="employee",
+                    email="employee@example.com",
+                    role="employee",
+                    hashed_password=get_password_hash("emp123"),
+                    is_active=True
+                )
+                db.add(db_employee)
+            
+            db.commit()
+            logger.info("Default users created in database if they didn't exist")
+        finally:
+            db.close()
         
         logger.info("All models loaded successfully")
     except Exception as e:
@@ -242,9 +256,9 @@ app.add_middleware(
 
 # Login endpoint
 @app.post("/login", response_model=Token)
-def login(username: str, password: str):
+def login(username: str, password: str, db: Session = Depends(get_db)):
     """Login endpoint to get access token."""
-    user = authenticate_user(username, password)
+    user = authenticate_user(username, password, db)
     if not user:
         raise HTTPException(
             status_code=401,
@@ -253,7 +267,7 @@ def login(username: str, password: str):
         )
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user["username"], "role": user["role"]}, 
+        data={"sub": user.username, "role": user.role}, 
         expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
@@ -313,6 +327,11 @@ def load_processed_data():
             return df
         except:
             return pd.DataFrame()
+
+# Function to clear the cache when data changes
+def clear_data_cache():
+    """Clear the cached data to force reload from database."""
+    load_processed_data.cache_clear()
 
 # Prediction request validation
 from pydantic import Field
@@ -538,17 +557,24 @@ def scan_qr(item_id: str = Query(..., description="Item ID from QR code"), curre
 
 # User management endpoints
 @app.post("/users/create")
-def create_user(user: User, current_user: dict = Depends(require_role("admin"))):
+def create_user(user: User, db: Session = Depends(get_db), current_user: DBUser = Depends(require_role("admin"))):
     """Create a new user (admin only)."""
-    if user.username in fake_users_db:
+    # Check if user already exists
+    existing_user = db.query(DBUser).filter(DBUser.username == user.username).first()
+    if existing_user:
         raise HTTPException(status_code=400, detail="Username already registered")
     
-    fake_users_db[user.username] = {
-        "username": user.username,
-        "email": user.email,
-        "role": user.role,
-        "hashed_password": get_password_hash("newuser123")  # Default password for new users
-    }
+    # Create new user with default password
+    db_user = DBUser(
+        username=user.username,
+        email=user.email,
+        role=user.role,
+        hashed_password=get_password_hash("newuser123"),  # Default password for new users
+        is_active=True
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
     
     return {"message": f"User {user.username} created successfully"}
 
@@ -577,7 +603,7 @@ def get_inventory_item(item_id: int, db: Session = Depends(get_db), current_user
 
 
 @app.post("/inventory")
-def create_inventory_item(item: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_role("manager"))):
+def create_inventory_item(item: dict, db: Session = Depends(get_db), current_user: DBUser = Depends(require_role("manager"))):
     """Create a new inventory item."""
     # Create a new inventory item from the dictionary
     db_item = InventoryItem(
@@ -595,11 +621,13 @@ def create_inventory_item(item: dict, db: Session = Depends(get_db), current_use
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
+    # Clear cache to refresh data for ML endpoints
+    clear_data_cache()
     return db_item
 
 
 @app.put("/inventory/{item_id}")
-def update_inventory_item(item_id: int, item: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_role("manager"))):
+def update_inventory_item(item_id: int, item: dict, db: Session = Depends(get_db), current_user: DBUser = Depends(require_role("manager"))):
     """Update an existing inventory item."""
     db_item = db.query(InventoryItem).filter(InventoryItem.id == item_id, InventoryItem.is_active == True).first()
     if not db_item:
@@ -628,11 +656,13 @@ def update_inventory_item(item_id: int, item: dict, db: Session = Depends(get_db
         db_item.qr_code = item['qr_code']
     
     db.commit()
+    # Clear cache to refresh data for ML endpoints
+    clear_data_cache()
     return db_item
 
 
 @app.delete("/inventory/{item_id}")
-def delete_inventory_item(item_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+def delete_inventory_item(item_id: int, db: Session = Depends(get_db), current_user: DBUser = Depends(require_role("admin"))):
     """Soft delete an inventory item."""
     db_item = db.query(InventoryItem).filter(InventoryItem.id == item_id).first()
     if not db_item:
@@ -641,6 +671,8 @@ def delete_inventory_item(item_id: int, db: Session = Depends(get_db), current_u
     # Soft delete by setting is_active to False
     db_item.is_active = False
     db.commit()
+    # Clear cache to refresh data for ML endpoints
+    clear_data_cache()
     return {"message": "Item deleted successfully"}
 
 
