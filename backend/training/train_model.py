@@ -58,4 +58,4 @@ joblib.dump(kmeans, os.path.join(model_dir, 'stock_cluster.pkl'))
 # Save processed inventory
 df.to_csv(processed_path, index=False)
 
-print("✅ Model training complete. Files saved in /models and /data")
+print("Model training complete. Files saved in /models and /data")

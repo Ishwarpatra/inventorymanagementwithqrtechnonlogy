@@ -1,115 +1,155 @@
-Smart Inventory Management System (Work in Progress)
+# Smart Inventory Management System
+
 Revolutionizing retail business with a QR code-based smart inventory system for efficient stock management and real-time updates.
 
-This project aims to provide a comprehensive solution for modern retail, leveraging QR codes and AI to streamline inventory operations, prevent stockouts, and optimize stock replenishment.
+This project provides a comprehensive solution for modern retail, leveraging QR codes and AI to streamline inventory operations, prevent stockouts, and optimize stock replenishment.
 
-Table of Contents
-About the Project
+## Table of Contents
+- [About the Project](#about-the-project)
+- [Features](#features)
+- [Technical Stack](#technical-stack)
+- [Installation](#installation)
+- [Usage](#usage)
+- [API Endpoints](#api-endpoints)
+- [Challenges & Solutions](#challenges--solutions)
+- [Project Status](#project-status)
+- [Contact](#contact)
 
-Features
-
-Technical Blueprint
-
-Challenges & Solutions
-
-Project Status
-
-Contact
-
-About the Project
+## About the Project
 The Smart Inventory Management System, developed by Assassinators (Gyan Prakash (team leader), Koustubh Verma & Iswar Patra), is designed to simplify retail management through efficient stock tracking and real-time updates.
 
 Key aspects include:
+- **QR-BASED TRACKING**: Utilize QR codes for quick and accurate product identification, reducing manual errors.
+- **REAL-TIME UPDATES**: Get instant stock updates and low-stock alerts to prevent overstocking or shortages.
+- **SECURE ACCESS**: Role-based access control to protect sensitive inventory data.
 
-QR-BASED TRACKING: Utilize QR codes for quick and accurate product identification, reducing manual errors.
-
-REAL-TIME UPDATES: Get instant stock updates and low-stock alerts to prevent overstocking or shortages.
-
-MOBILE ACCESSIBILITY: Access and manage your inventory from anywhere with a mobile-friendly interface.
-
-Features
+## Features
 Our system offers a seamless user experience, streamlining inventory tasks with the following core functionalities:
 
-QR Code Generation & Scanning: Generate unique QR codes for products and scan them for quick inventory access and tracking.
+### QR Code Management
+- Generate unique QR codes for products
+- Scan QR codes for quick inventory access and tracking
 
-Stock Management:
+### Stock Management
+- Register initial stock, manufacturing, and expiry dates
+- Monitor stock levels in real-time
+- Update stock counts
+- Track usage
 
-Register initial stock, manufacturing, and expiry dates.
+### Product Management
+- Add, update, and remove items from inventory
+- Manage categories and brands
 
-Monitor stock levels in real-time.
+### AI-Powered Insights
+- Predict sales based on item features
+- Provide restocking suggestions based on AI insights
+- Identify slow-moving and fast-moving products
+- Suggest strategies to boost sales
 
-Update stock counts.
+### Authentication & Authorization
+- JWT-based authentication
+- Role-based access control (Admin, Manager, Employee)
+- Secure API endpoints
 
-Track usage.
+### Database Integration
+- SQLite database for persistent storage
+- Support for PostgreSQL (easily configurable)
 
-Product Management: Add, update, and remove items from inventory.
+## Technical Stack
+- **Backend**: Python with FastAPI
+- **Database**: SQLite (with PostgreSQL support)
+- **Authentication**: JWT tokens with role-based access
+- **Machine Learning**: XGBoost for sales prediction, K-Means for clustering
+- **QR Codes**: Python qrcode library
+- **Frontend**: Compatible with React/Angular/Vue.js (API-first design)
 
-Alerts & Notifications:
+## Installation
 
-Trigger alerts if stock falls below a certain percentage (e.g., < 20%).
+1. Clone the repository:
+```bash
+git clone https://github.com/your-repo/inventorymanagementwithqrtechnology.git
+```
 
-Send low-stock warnings.
+2. Install dependencies:
+```bash
+pip install fastapi uvicorn pandas numpy xgboost scikit-learn qrcode[pil] python-jose[cryptography] passlib[bcrypt] sqlalchemy
+```
 
-Send alerts one month before expiry dates.
+3. Train the models:
+```bash
+cd backend/training
+python train_model.py
+python train_clustering.py
+```
 
-SMS notifications for critical updates.
+4. Run the application:
+```bash
+uvicorn app:app --reload
+```
 
-AI-Powered Stock Optimization:
+## Usage
 
-Collect sales data.
+1. Start the server: `uvicorn app:app --reload`
+2. Access the API at `http://127.0.0.1:8000`
+3. Use the `/docs` endpoint for API documentation and testing
 
-Train LLM models to predict stock demand.
+### Default Credentials
+- Admin: username: `admin`, password: `admin123`
+- Manager: username: `manager`, password: `manager123`
+- Employee: username: `employee`, password: `employee123`
 
-Provide restocking suggestions based on AI insights.
+## API Endpoints
 
-Boost profitability through optimal stock replenishment.
+### Authentication
+- `POST /login` - Authenticate and get JWT token
 
-Business Growth & Connectivity:
+### User Management
+- `POST /users/create` - Create new user (Admin only)
+- `GET /users/me` - Get current user info
 
-Connect retailers and wholesalers.
+### Inventory Management
+- `GET /inventory` - Get all inventory items
+- `GET /inventory/{item_id}` - Get specific item
+- `POST /inventory` - Create new item (Manager+)
+- `PUT /inventory/{item_id}` - Update item (Manager+)
+- `DELETE /inventory/{item_id}` - Delete item (Admin only)
 
-Enable direct business talks.
+### QR Code Management
+- `GET /generate_qr/{item_id}` - Generate QR code for item
+- `POST /scan_qr` - Simulate QR code scanning
 
-Mobile App Development: Develop a user-friendly mobile application for on-the-go inventory management.
+### AI-Powered Insights
+- `POST /predict_sales` - Predict sales for an item
+- `GET /recommend` - Get stock recommendations
+- `GET /boost_sales` - Get sales boosting strategies
 
-Technical Blueprint
-The system is built with a robust and scalable architecture, utilizing modern technologies across different layers:
+## Challenges & Solutions
+We have identified and addressed several challenges:
 
-FRONTEND: React Native and Flutter for cross-platform compatibility, ensuring mobile accessibility.
+### Challenge: Feature consistency in ML models
+**Solution**: Ensured consistent feature engineering between training and inference phases.
 
-BACKEND: Node.js, Firebase, or AWS for scalable and reliable performance.
+### Challenge: Data preprocessing inconsistencies
+**Solution**: Implemented standardized preprocessing and saved scalers for consistent transformation.
 
-DATABASE: MongoDB and PostgreSQL for flexible data storage and retrieval.
+### Challenge: Authentication and authorization
+**Solution**: Implemented JWT-based authentication with role-based access control.
 
-AI/ML: TensorFlow and Scikit-learn to drive intelligent stock recommendations and demand forecasting.
+### Challenge: Scalable data storage
+**Solution**: Integrated SQL database with SQLAlchemy ORM for persistent storage.
 
-Challenges & Solutions
-We have identified and addressed several potential challenges:
+## Project Status
+This project is now complete with all core features implemented:
+- ✅ QR code generation and scanning
+- ✅ Machine learning models for sales prediction and recommendations
+- ✅ Authentication and role-based access control
+- ✅ Database integration
+- ✅ RESTful API endpoints
+- ✅ Proper error handling and logging
 
-Challenge: QR code scanning errors due to poor lighting or damaged codes.
-
-Solution: Implement error correction and brightness adjustment features within the scanning mechanism.
-
-Challenge: AI recommendation accuracy for stock forecasting.
-
-Solution: Utilize machine learning models trained on extensive historical sales data for improved predictions.
-
-Challenge: User adoption and ease of use.
-
-Solution: Provide an intuitive User Interface (UI) with guided tutorials and multilingual support.
-
-Challenge: Data security and unauthorized access.
-
-Solution: Implement robust role-based access control and data encryption mechanisms.
-
-Project Status
-This project is currently a work in progress. We are actively developing and refining the features outlined above. Further updates and improvements will be regularly pushed to this repository.
-
-Contact
+## Contact
 For any inquiries or collaboration opportunities, please reach out to the team leaders:
 
 Gyan Prakash: gyankngmpb1364@gmail.com,
-
 Koustubh Verma: hp.koustubh@gmail.com,
-
 Iswar Patra: patraishwar@yahoo.com,
